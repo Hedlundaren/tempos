@@ -1,6 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { RestrictToVerticalAxis } from "@dnd-kit/abstract/modifiers";
+import { arrayMove } from "@dnd-kit/helpers";
+import {
+  DragDropProvider,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  type DragEndEvent,
+} from "@dnd-kit/react";
+import { PointerActivationConstraints } from "@dnd-kit/dom";
+import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { Metronome } from "@/lib/metronome";
 import {
   MAX_BPM,
@@ -12,6 +23,25 @@ import {
   writeSettings,
   type Tempo,
 } from "@/lib/settings";
+
+const sortableSensors = [
+  PointerSensor.configure({
+    activationConstraints(event) {
+      if (event.pointerType === "touch" || event.pointerType === "pen") {
+        return [new PointerActivationConstraints.Distance({ value: 8 })];
+      }
+      return undefined;
+    },
+  }),
+  KeyboardSensor,
+];
+
+const verticalAxis = [RestrictToVerticalAxis];
+
+const rowTransition = {
+  duration: 220,
+  easing: "cubic-bezier(0.25, 1, 0.5, 1)",
+};
 
 export function MetronomeApp() {
   const settings = useSyncExternalStore(
@@ -96,9 +126,15 @@ export function MetronomeApp() {
     const arm = armRef.current;
     if (!arm) return;
 
+    const clearBeat = () => {
+      document.body.style.backgroundColor = "";
+      document.body.style.backgroundImage = "";
+    };
+
     if (!playingId) {
       arm.style.transition = "transform 280ms ease-out";
       arm.style.transform = "rotate(0deg)";
+      clearBeat();
       return;
     }
 
@@ -114,6 +150,13 @@ export function MetronomeApp() {
       const now = metronome.time;
       if (!reduceMotion) {
         arm.style.transform = `rotate(${metronome.angleAt(now)}deg)`;
+        const pulse = metronome.pulseAt(now);
+        const mix = pulse * 0.5;
+        const red = Math.round(20 + (107 - 20) * mix);
+        const green = Math.round(17 + (75 - 17) * mix);
+        const blue = Math.round(14 + (50 - 14) * mix);
+        document.body.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
+        document.body.style.backgroundImage = `radial-gradient(900px 480px at 50% -10%, rgba(255, 196, 120, ${(0.12 + pulse * 0.4).toFixed(3)}), transparent 62%)`;
       }
 
       const beat = metronome.beatAt(now);
@@ -131,7 +174,10 @@ export function MetronomeApp() {
     };
 
     frame = window.requestAnimationFrame(loop);
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      clearBeat();
+    };
   }, [playingId]);
 
   function updateTempo(id: string, patch: Partial<Pick<Tempo, "name" | "bpm">>) {
@@ -242,10 +288,79 @@ export function MetronomeApp() {
     setPlayingId(null);
   }
 
+  function reorderTempos(event: DragEndEvent) {
+    if (event.operation.canceled) return;
+    const source = event.operation.source ?? null;
+    if (!isSortable(source)) return;
+
+    const current = getSettingsSnapshot();
+    if (!current) return;
+
+    const { initialIndex, index } = source;
+    if (
+      initialIndex === index ||
+      initialIndex < 0 ||
+      index < 0 ||
+      initialIndex >= current.tempos.length
+    ) {
+      return;
+    }
+
+    writeSettings({
+      ...current,
+      tempos: arrayMove(current.tempos, initialIndex, index),
+    });
+  }
+
   const playing = Boolean(selected && playingId === selected.id);
 
   return (
     <div className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-8">
+      <style>{`
+        .tempo-slider {
+          -webkit-appearance: none;
+          appearance: none;
+          accent-color: #ffffff;
+        }
+        .tempo-slider::-webkit-slider-runnable-track {
+          height: 0.3rem;
+          border-radius: 999px;
+          background: linear-gradient(
+            to right,
+            #ffffff var(--fill, 0%),
+            rgba(255, 255, 255, 0.22) var(--fill, 0%)
+          );
+        }
+        .tempo-slider::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 1.75rem;
+          height: 1.75rem;
+          margin-top: -0.72rem;
+          border: 0;
+          border-radius: 999px;
+          background: #ffffff;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+        }
+        .tempo-slider::-moz-range-track {
+          height: 0.3rem;
+          border: 0;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.22);
+        }
+        .tempo-slider::-moz-range-progress {
+          height: 0.3rem;
+          border-radius: 999px;
+          background: #ffffff;
+        }
+        .tempo-slider::-moz-range-thumb {
+          width: 1.75rem;
+          height: 1.75rem;
+          border: 0;
+          border-radius: 999px;
+          background: #ffffff;
+        }
+      `}</style>
       <header>
         <h1 className="text-2xl font-medium tracking-tight">Tempos</h1>
       </header>
@@ -283,36 +398,60 @@ export function MetronomeApp() {
             </div>
           </div>
 
-          <div className="min-w-0 flex-1 text-center">
-            <label className="sr-only" htmlFor="bpm">
-              Beats per minute
-            </label>
-            <input
-              id="bpm"
-              value={selected ? displayedBpm : ""}
-              onChange={(event) => onBpmDraftChange(event.target.value)}
-              onFocus={(event) => event.currentTarget.select()}
-              onBlur={() => {
-                if (!selected || bpmDraft === null) return;
-                const bpm = Number(bpmDraft);
-                if (!Number.isFinite(bpm)) {
-                  setBpmDraft(null);
-                  return;
-                }
-                changeBpm(bpm);
-              }}
-              onKeyDown={onBpmKeyDown}
-              inputMode="numeric"
-              enterKeyHint="done"
-              disabled={!selected}
-              autoComplete="off"
-              className="w-full bg-transparent text-center font-display text-[clamp(2.75rem,14vw,3.75rem)] leading-none tracking-tight tabular-nums outline-none disabled:opacity-40"
-            />
-            <p className="mt-2 text-[0.65rem] tracking-[0.18em] text-muted uppercase">BPM</p>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-center gap-1">
+              <button
+                type="button"
+                onClick={() => changeBpm((selected?.bpm ?? MIN_BPM) - 1)}
+                disabled={!selected || selected.bpm <= MIN_BPM}
+                aria-label="Decrease BPM"
+                className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-foreground hover:bg-white/12 active:bg-white/16 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <MinusIcon />
+              </button>
+              <label className="sr-only" htmlFor="bpm">
+                Beats per minute
+              </label>
+              <input
+                id="bpm"
+                value={selected ? displayedBpm : ""}
+                onChange={(event) => onBpmDraftChange(event.target.value)}
+                onFocus={(event) => event.currentTarget.select()}
+                onBlur={() => {
+                  if (!selected || bpmDraft === null) return;
+                  const bpm = Number(bpmDraft);
+                  if (!Number.isFinite(bpm)) {
+                    setBpmDraft(null);
+                    return;
+                  }
+                  changeBpm(bpm);
+                }}
+                onKeyDown={onBpmKeyDown}
+                inputMode="numeric"
+                enterKeyHint="done"
+                disabled={!selected}
+                autoComplete="off"
+                className="w-[3.4ch] bg-transparent text-center font-display text-[clamp(2.5rem,12vw,3.75rem)] leading-none tracking-tight tabular-nums outline-none disabled:opacity-40"
+              />
+              <button
+                type="button"
+                onClick={() => changeBpm((selected?.bpm ?? MAX_BPM) + 1)}
+                disabled={!selected || selected.bpm >= MAX_BPM}
+                aria-label="Increase BPM"
+                className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-foreground hover:bg-white/12 active:bg-white/16 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <PlusIcon />
+              </button>
+            </div>
+            <p className="mt-2 text-center text-[0.65rem] tracking-[0.18em] text-muted uppercase">
+              BPM
+            </p>
             {selected?.name ? (
-              <p className="mt-2 truncate text-sm text-foreground/80">{selected.name}</p>
+              <p className="mt-2 truncate text-center text-sm text-foreground/80">
+                {selected.name}
+              </p>
             ) : (
-              <p className="mt-2 text-sm text-muted">Untitled</p>
+              <p className="mt-2 text-center text-sm text-muted">Untitled</p>
             )}
           </div>
         </div>
@@ -361,60 +500,37 @@ export function MetronomeApp() {
         {settings && settings.tempos.length === 0 ? (
           <p className="mt-3 text-sm text-muted">Add a tempo to start listening.</p>
         ) : null}
-        <ul className="mt-4 flex flex-col gap-3">
-          {settings?.tempos.map((tempo) => {
-            const isSelected = tempo.id === settings.selectedId;
-            const isPlaying = tempo.id === playingId;
-
-            return (
-              <li
+        <DragDropProvider sensors={sortableSensors} onDragEnd={reorderTempos}>
+          <ul className="mt-4 flex flex-col gap-3">
+            {settings?.tempos.map((tempo, index) => (
+              <SortableTempo
                 key={tempo.id}
-                className={`flex items-center gap-2 rounded-2xl border px-2 py-2 ${
-                  isSelected ? "border-accent/70 bg-accent/10" : "border-line bg-card"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => void play(tempo.id)}
-                  aria-label={
-                    isPlaying
-                      ? `Stop ${tempo.name || tempo.bpm}`
-                      : `Play ${tempo.name || tempo.bpm}`
-                  }
-                  aria-pressed={isPlaying}
-                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-foreground hover:bg-white/12 active:bg-white/16"
-                >
-                  {isPlaying ? <StopIcon /> : <PlayIcon />}
-                </button>
-                <input
-                  value={tempo.name}
-                  onChange={(event) => updateTempo(tempo.id, { name: event.target.value })}
-                  onFocus={() => selectTempo(tempo.id)}
-                  onBlur={(event) =>
-                    updateTempo(tempo.id, { name: event.target.value.trim() })
-                  }
-                  placeholder="Untitled"
-                  aria-label={`Name for ${tempo.bpm} BPM`}
-                  maxLength={60}
-                  enterKeyHint="done"
-                  autoCapitalize="words"
-                  className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted/70"
+                tempo={tempo}
+                index={index}
+                isSelected={tempo.id === settings.selectedId}
+                isPlaying={tempo.id === playingId}
+                onPlay={(id) => void play(id)}
+                onSelect={selectTempo}
+                onRename={(id, name) => updateTempo(id, { name })}
+                onRemove={removeTempo}
+              />
+            ))}
+          </ul>
+          <DragOverlay>
+            {(source) => {
+              const tempo = settings?.tempos.find((item) => item.id === source.id);
+              if (!tempo) return null;
+              return (
+                <TempoRow
+                  tempo={tempo}
+                  isSelected={tempo.id === settings?.selectedId}
+                  isPlaying={tempo.id === playingId}
+                  lifted
                 />
-                <span className="w-11 shrink-0 text-right text-base text-muted tabular-nums">
-                  {tempo.bpm}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeTempo(tempo.id)}
-                  aria-label={`Delete ${tempo.name || tempo.bpm}`}
-                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-foreground active:bg-white/12"
-                >
-                  <CloseIcon />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+              );
+            }}
+          </DragOverlay>
+        </DragDropProvider>
 
         <form onSubmit={addTempo} className="mt-4 flex flex-col gap-3">
           <input
@@ -453,6 +569,161 @@ export function MetronomeApp() {
   );
 }
 
+function SortableTempo({
+  tempo,
+  index,
+  isSelected,
+  isPlaying,
+  onPlay,
+  onSelect,
+  onRename,
+  onRemove,
+}: {
+  tempo: Tempo;
+  index: number;
+  isSelected: boolean;
+  isPlaying: boolean;
+  onPlay: (id: string) => void;
+  onSelect: (id: string) => void;
+  onRename: (id: string, name: string) => void;
+  onRemove: (id: string) => void;
+}) {
+  const { ref, handleRef, isDragSource, isDropping } = useSortable({
+    id: tempo.id,
+    index,
+    modifiers: verticalAxis,
+    transition: rowTransition,
+  });
+
+  return (
+    <li ref={ref} className={isDragSource || isDropping ? "invisible" : undefined}>
+      <TempoRow
+        tempo={tempo}
+        isSelected={isSelected}
+        isPlaying={isPlaying}
+        handleRef={handleRef}
+        onPlay={onPlay}
+        onSelect={onSelect}
+        onRename={onRename}
+        onRemove={onRemove}
+      />
+    </li>
+  );
+}
+
+function TempoRow({
+  tempo,
+  isSelected,
+  isPlaying,
+  handleRef,
+  onPlay,
+  onSelect,
+  onRename,
+  onRemove,
+  lifted = false,
+}: {
+  tempo: Tempo;
+  isSelected: boolean;
+  isPlaying: boolean;
+  handleRef?: (element: Element | null) => void;
+  onPlay?: (id: string) => void;
+  onSelect?: (id: string) => void;
+  onRename?: (id: string, name: string) => void;
+  onRemove?: (id: string) => void;
+  lifted?: boolean;
+}) {
+  const label = tempo.name || `${tempo.bpm} BPM`;
+
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-2xl border px-2 py-2 ${
+        isSelected ? "border-accent/70 bg-accent/10" : "border-line bg-card"
+      } ${lifted ? "bg-card shadow-[0_18px_40px_rgba(0,0,0,0.45)]" : ""}`}
+    >
+      <button
+        type="button"
+        ref={handleRef}
+        aria-label={`Drag to reorder ${label}`}
+        className="inline-flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-full text-muted active:cursor-grabbing"
+      >
+        <GripIcon />
+      </button>
+      {onPlay ? (
+        <button
+          type="button"
+          onClick={() => onPlay(tempo.id)}
+          aria-label={isPlaying ? `Stop ${label}` : `Play ${label}`}
+          aria-pressed={isPlaying}
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-foreground hover:bg-white/12 active:bg-white/16"
+        >
+          {isPlaying ? <StopIcon /> : <PlayIcon />}
+        </button>
+      ) : (
+        <span
+          aria-hidden="true"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-foreground"
+        >
+          {isPlaying ? <StopIcon /> : <PlayIcon />}
+        </span>
+      )}
+      {onRename ? (
+        <input
+          value={tempo.name}
+          onChange={(event) => onRename(tempo.id, event.target.value)}
+          onFocus={() => onSelect?.(tempo.id)}
+          onBlur={(event) => onRename(tempo.id, event.target.value.trim())}
+          placeholder="Untitled"
+          aria-label={`Name for ${tempo.bpm} BPM`}
+          maxLength={60}
+          enterKeyHint="done"
+          autoCapitalize="words"
+          className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted/70"
+        />
+      ) : (
+        <span className="min-w-0 flex-1 truncate text-base">
+          {tempo.name || "Untitled"}
+        </span>
+      )}
+      <span className="w-11 shrink-0 text-right text-base text-muted tabular-nums">
+        {tempo.bpm}
+      </span>
+      {onRemove ? (
+        <button
+          type="button"
+          onClick={() => onRemove(tempo.id)}
+          aria-label={`Delete ${label}`}
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-foreground active:bg-white/12"
+        >
+          <CloseIcon />
+        </button>
+      ) : (
+        <span className="inline-flex size-11 shrink-0" />
+      )}
+    </div>
+  );
+}
+
+function MinusIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-5" aria-hidden="true">
+      <path d="M5 10h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-5" aria-hidden="true">
+      <path
+        d="M10 5v10M5 10h10"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function PlayIcon() {
   return (
     <svg viewBox="0 0 20 20" className="size-5" aria-hidden="true">
@@ -465,6 +736,19 @@ function StopIcon() {
   return (
     <svg viewBox="0 0 20 20" className="size-5" aria-hidden="true">
       <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-5" aria-hidden="true">
+      <circle cx="7" cy="5.5" r="1.15" fill="currentColor" />
+      <circle cx="13" cy="5.5" r="1.15" fill="currentColor" />
+      <circle cx="7" cy="10" r="1.15" fill="currentColor" />
+      <circle cx="13" cy="10" r="1.15" fill="currentColor" />
+      <circle cx="7" cy="14.5" r="1.15" fill="currentColor" />
+      <circle cx="13" cy="14.5" r="1.15" fill="currentColor" />
     </svg>
   );
 }

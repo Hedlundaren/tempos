@@ -62,6 +62,21 @@ export class Metronome {
     return Math.floor(phase + 0.0001);
   }
 
+  pulseAt(time: number) {
+    if (!this.playing) return 0;
+
+    const interval = 60 / this.bpm;
+    const phase = (time - this.beatEpoch) / interval;
+    if (phase < 0) return 0;
+
+    const intoBeat = phase - Math.floor(phase);
+    const fade = Math.min(0.45, interval * 0.72);
+    const progress = (intoBeat * interval) / fade;
+    if (progress >= 1) return 0;
+
+    return (1 - progress) ** 2;
+  }
+
   async start(bpm: number) {
     await this.prepare();
     this.stop();

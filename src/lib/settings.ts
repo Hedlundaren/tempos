@@ -1,7 +1,7 @@
 export const STORAGE_KEY = "tempos";
 
-export const MIN_BPM = 30;
-export const MAX_BPM = 300;
+export const MIN_BPM = 40;
+export const MAX_BPM = 240;
 
 export type Tempo = {
   id: string;
