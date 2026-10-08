@@ -19,6 +19,9 @@ import {
   clampBpm,
   getServerSettingsSnapshot,
   getSettingsSnapshot,
+  publishSettingsUrl,
+  readSettingsFromLocation,
+  replaceSettings,
   subscribeSettings,
   writeSettings,
   type Tempo,
@@ -54,22 +57,59 @@ export function MetronomeApp() {
   const [draftName, setDraftName] = useState("");
   const [draftBpm, setDraftBpm] = useState("120");
   const [error, setError] = useState<string | null>(null);
+  const [shareLabel, setShareLabel] = useState<string | null>(null);
 
   const metronomeRef = useRef<Metronome | null>(null);
   const armRef = useRef<HTMLDivElement>(null);
   const bobRef = useRef<HTMLDivElement>(null);
   const beatRef = useRef<HTMLDivElement>(null);
   const busyRef = useRef(false);
+  const playingIdRef = useRef(playingId);
+  const shareTimerRef = useRef<number | null>(null);
 
   const selected =
     settings?.tempos.find((tempo) => tempo.id === settings.selectedId) ?? null;
   const displayedBpm = bpmDraft ?? (selected ? String(selected.bpm) : "");
 
   useEffect(() => {
+    playingIdRef.current = playingId;
+  }, [playingId]);
+
+  useEffect(() => {
     const metronome = new Metronome();
     metronomeRef.current = metronome;
     metronome.warmup();
     return () => metronome.stop();
+  }, []);
+
+  useEffect(() => {
+    publishSettingsUrl();
+
+    const onPopState = () => {
+      const next = readSettingsFromLocation();
+      replaceSettings(next);
+
+      const metronome = metronomeRef.current;
+      const current = playingIdRef.current;
+      const stillPlaying = current !== null && next.tempos.some((tempo) => tempo.id === current);
+      if (!metronome?.isPlaying || stillPlaying) {
+        if (current && !stillPlaying) setPlayingId(null);
+        return;
+      }
+
+      const tempo = next.tempos.find((item) => item.id === next.selectedId);
+      if (!tempo) {
+        metronome.stop();
+        setPlayingId(null);
+        return;
+      }
+
+      metronome.setBpm(tempo.bpm);
+      setPlayingId(tempo.id);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   const play = useCallback(
@@ -324,6 +364,36 @@ export function MetronomeApp() {
     });
   }
 
+  function noteShare(label: string) {
+    if (shareTimerRef.current !== null) window.clearTimeout(shareTimerRef.current);
+    setShareLabel(label);
+    shareTimerRef.current = window.setTimeout(() => {
+      shareTimerRef.current = null;
+      setShareLabel(null);
+    }, 1600);
+  }
+
+  async function shareList() {
+    publishSettingsUrl();
+    const url = window.location.href;
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: "Tempos", url });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      noteShare("Copied");
+    } catch {
+      noteShare("Couldn’t copy");
+    }
+  }
+
   const playing = Boolean(selected && playingId === selected.id);
 
   return (
@@ -393,8 +463,17 @@ export function MetronomeApp() {
         }
       `}</style>
       <div ref={beatRef} aria-hidden="true" className="beat-wash" />
-      <header>
+      <header className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-medium tracking-tight">Tempos</h1>
+        <button
+          type="button"
+          onClick={() => void shareList()}
+          aria-label={shareLabel ?? "Share list"}
+          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-white/8 px-3.5 text-sm font-medium text-foreground hover:bg-white/12 active:bg-white/16"
+        >
+          <ShareIcon />
+          {shareLabel ?? "Share"}
+        </button>
       </header>
 
       <section className="mt-5 rounded-3xl border border-line bg-card px-5 py-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
@@ -761,6 +840,29 @@ function PlusIcon() {
         stroke="currentColor"
         strokeWidth="1.8"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="size-4" aria-hidden="true">
+      <path
+        d="M10 3.5v8M6.5 6.5 10 3l3.5 3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5 10.5V15a1.5 1.5 0 0 0 1.5 1.5h7A1.5 1.5 0 0 0 15 15v-4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
