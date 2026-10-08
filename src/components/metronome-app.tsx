@@ -58,6 +58,7 @@ export function MetronomeApp() {
   const [draftBpm, setDraftBpm] = useState("120");
   const [error, setError] = useState<string | null>(null);
   const [shareLabel, setShareLabel] = useState<string | null>(null);
+  const [shareLink, setShareLink] = useState<string | null>(null);
 
   const metronomeRef = useRef<Metronome | null>(null);
   const armRef = useRef<HTMLDivElement>(null);
@@ -380,6 +381,7 @@ export function MetronomeApp() {
     if (typeof navigator.share === "function") {
       try {
         await navigator.share({ title: "Tempos", url });
+        setShareLink(null);
         return;
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -388,9 +390,15 @@ export function MetronomeApp() {
 
     try {
       await navigator.clipboard.writeText(url);
+      setShareLink(null);
       noteShare("Copied");
     } catch {
-      noteShare("Couldn’t copy");
+      if (shareTimerRef.current !== null) {
+        window.clearTimeout(shareTimerRef.current);
+        shareTimerRef.current = null;
+      }
+      setShareLabel(null);
+      setShareLink(url);
     }
   }
 
@@ -465,15 +473,30 @@ export function MetronomeApp() {
       <div ref={beatRef} aria-hidden="true" className="beat-wash" />
       <header className="flex items-center justify-between gap-3">
         <h1 className="text-2xl font-medium tracking-tight">Tempos</h1>
-        <button
-          type="button"
-          onClick={() => void shareList()}
-          aria-label={shareLabel ?? "Share list"}
-          className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-white/8 px-3.5 text-sm font-medium text-foreground hover:bg-white/12 active:bg-white/16"
-        >
-          <ShareIcon />
-          {shareLabel ?? "Share"}
-        </button>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => void shareList()}
+            aria-label={shareLabel ?? "Share list"}
+            aria-expanded={shareLink !== null}
+            className="inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-white/8 px-3.5 text-sm font-medium text-foreground hover:bg-white/12 active:bg-white/16"
+          >
+            <ShareIcon />
+            {shareLabel ?? "Share"}
+          </button>
+          {shareLink ? (
+            <div className="absolute top-full right-0 z-20 mt-2 w-72 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-line bg-card p-3 shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+              <input
+                readOnly
+                value={shareLink}
+                aria-label="Shareable link"
+                autoFocus
+                onFocus={(event) => event.currentTarget.select()}
+                className="h-11 w-full rounded-xl border border-line bg-background px-3 text-base outline-none"
+              />
+            </div>
+          ) : null}
+        </div>
       </header>
 
       <section className="mt-5 rounded-3xl border border-line bg-card px-5 py-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
@@ -644,17 +667,17 @@ export function MetronomeApp() {
         </DragDropProvider>
 
         <form onSubmit={addTempo} className="mt-4 flex flex-col gap-3">
-          <input
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
-            placeholder="Name"
-            aria-label="New tempo name"
-            maxLength={60}
-            enterKeyHint="next"
-            autoCapitalize="words"
-            className="h-12 w-full rounded-xl border border-line bg-card px-3 text-base outline-none placeholder:text-muted/70 focus-visible:border-accent"
-          />
           <div className="flex gap-3">
+            <input
+              value={draftName}
+              onChange={(event) => setDraftName(event.target.value)}
+              placeholder="Name"
+              aria-label="New tempo name"
+              maxLength={60}
+              enterKeyHint="next"
+              autoCapitalize="words"
+              className="h-12 min-w-0 flex-1 rounded-xl border border-line bg-card px-3 text-base outline-none placeholder:text-muted/70 focus-visible:border-accent"
+            />
             <input
               value={draftBpm}
               onChange={(event) => setDraftBpm(event.target.value)}
@@ -665,15 +688,15 @@ export function MetronomeApp() {
               required
               enterKeyHint="done"
               aria-label="New tempo BPM"
-              className="h-12 w-24 rounded-xl border border-line bg-card px-3 text-base outline-none focus-visible:border-accent"
+              className="h-12 w-24 shrink-0 rounded-xl border border-line bg-card px-3 text-base outline-none focus-visible:border-accent"
             />
-            <button
-              type="submit"
-              className="h-12 flex-1 rounded-xl bg-foreground text-base font-medium text-background active:opacity-80"
-            >
-              Add tempo
-            </button>
           </div>
+          <button
+            type="submit"
+            className="h-12 w-full rounded-xl bg-foreground text-base font-medium text-background active:opacity-80"
+          >
+            Add tempo
+          </button>
         </form>
       </section>
     </div>
