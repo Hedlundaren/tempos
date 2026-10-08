@@ -245,77 +245,80 @@ export function MetronomeApp() {
   const playing = Boolean(selected && playingId === selected.id);
 
   return (
-    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col px-5 py-8 sm:py-12">
+    <div className="mx-auto flex w-full max-w-lg flex-1 flex-col px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-5 sm:py-8">
       <header>
-        <h1 className="text-3xl font-medium tracking-tight">Tempos</h1>
-        <p className="mt-2 max-w-sm text-sm leading-6 text-muted">
-          Keep a list of tempos and play any of them. Only the BPM changes.
-        </p>
+        <h1 className="text-2xl font-medium tracking-tight">Tempos</h1>
       </header>
 
-      <section className="mt-8 rounded-[28px] border border-line bg-card px-6 pt-8 pb-6 shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
-        <div className="relative mx-auto h-44 w-full max-w-xs">
-          <svg
-            viewBox="0 0 200 120"
-            className="absolute inset-x-0 top-2 h-28 w-full text-foreground/15"
-            aria-hidden="true"
-          >
-            <path
-              d="M28 108 A72 72 0 0 1 172 108"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            />
-          </svg>
-          <div className="absolute top-3 left-1/2 size-2.5 -translate-x-1/2 rounded-full bg-foreground/80" />
-          <div className="absolute top-4 left-1/2">
-            <div
-              ref={armRef}
-              className="relative h-36 w-8 -ml-4 will-change-transform"
-              style={{ transformOrigin: "top center" }}
+      <section className="mt-5 rounded-3xl border border-line bg-card px-5 py-5 shadow-[0_16px_40px_rgba(0,0,0,0.28)]">
+        <div className="flex items-center gap-4">
+          <div className="relative h-28 w-28 shrink-0">
+            <svg
+              viewBox="0 0 112 108"
+              className="absolute inset-0 text-foreground/15"
+              aria-hidden="true"
             >
-              <div className="absolute top-0 left-1/2 h-full w-px -translate-x-1/2 bg-foreground/75" />
-              <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
-                <div
-                  ref={bobRef}
-                  className="size-6 rounded-full bg-accent shadow-[0_8px_18px_rgba(232,146,58,0.28)]"
-                />
+              <path
+                d="M12 96 A44 44 0 0 1 100 96"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </svg>
+            <div className="absolute top-1.5 left-1/2 size-2 -translate-x-1/2 rounded-full bg-foreground/80" />
+            <div className="absolute top-2 left-1/2">
+              <div
+                ref={armRef}
+                className="relative h-24 w-7 -ml-3.5 will-change-transform"
+                style={{ transformOrigin: "top center" }}
+              >
+                <div className="absolute top-0 left-1/2 h-full w-px -translate-x-1/2 bg-foreground/75" />
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
+                  <div
+                    ref={bobRef}
+                    className="size-5 rounded-full bg-accent shadow-[0_6px_14px_rgba(232,146,58,0.28)]"
+                  />
+                </div>
               </div>
             </div>
           </div>
+
+          <div className="min-w-0 flex-1 text-center">
+            <label className="sr-only" htmlFor="bpm">
+              Beats per minute
+            </label>
+            <input
+              id="bpm"
+              value={selected ? displayedBpm : ""}
+              onChange={(event) => onBpmDraftChange(event.target.value)}
+              onFocus={(event) => event.currentTarget.select()}
+              onBlur={() => {
+                if (!selected || bpmDraft === null) return;
+                const bpm = Number(bpmDraft);
+                if (!Number.isFinite(bpm)) {
+                  setBpmDraft(null);
+                  return;
+                }
+                changeBpm(bpm);
+              }}
+              onKeyDown={onBpmKeyDown}
+              inputMode="numeric"
+              enterKeyHint="done"
+              disabled={!selected}
+              autoComplete="off"
+              className="w-full bg-transparent text-center font-display text-[clamp(2.75rem,14vw,3.75rem)] leading-none tracking-tight tabular-nums outline-none disabled:opacity-40"
+            />
+            <p className="mt-2 text-[0.65rem] tracking-[0.18em] text-muted uppercase">BPM</p>
+            {selected?.name ? (
+              <p className="mt-2 truncate text-sm text-foreground/80">{selected.name}</p>
+            ) : (
+              <p className="mt-2 text-sm text-muted">Untitled</p>
+            )}
+          </div>
         </div>
 
-        <div className="mt-2 text-center">
-          <label className="sr-only" htmlFor="bpm">
-            Beats per minute
-          </label>
-          <input
-            id="bpm"
-            value={selected ? displayedBpm : ""}
-            onChange={(event) => onBpmDraftChange(event.target.value)}
-            onBlur={() => {
-              if (!selected || bpmDraft === null) return;
-              const bpm = Number(bpmDraft);
-              if (!Number.isFinite(bpm)) {
-                setBpmDraft(null);
-                return;
-              }
-              changeBpm(bpm);
-            }}
-            onKeyDown={onBpmKeyDown}
-            inputMode="numeric"
-            disabled={!selected}
-            autoComplete="off"
-            className="w-40 bg-transparent text-center font-display text-7xl leading-none tracking-tight tabular-nums outline-none disabled:opacity-40"
-          />
-          <p className="mt-2 text-xs tracking-[0.18em] text-muted uppercase">BPM</p>
-          {selected?.name ? (
-            <p className="mt-3 truncate text-sm text-foreground/80">{selected.name}</p>
-          ) : null}
-        </div>
-
-        <div className="mt-6 flex items-center gap-3">
-          <span className="w-8 text-xs text-muted tabular-nums">{MIN_BPM}</span>
+        <div className="mt-5 flex items-center gap-3">
+          <span className="w-7 text-xs text-muted tabular-nums">{MIN_BPM}</span>
           <input
             type="range"
             min={MIN_BPM}
@@ -325,38 +328,40 @@ export function MetronomeApp() {
             onChange={(event) => changeBpm(Number(event.target.value))}
             disabled={!selected}
             aria-label="Beats per minute"
-            className="h-2 w-full cursor-pointer accent-accent disabled:cursor-not-allowed disabled:opacity-40"
+            className="tempo-slider w-full"
+            style={
+              {
+                "--fill": `${((selected?.bpm ?? 120) - MIN_BPM) / (MAX_BPM - MIN_BPM) * 100}%`,
+              } as React.CSSProperties
+            }
           />
           <span className="w-8 text-right text-xs text-muted tabular-nums">{MAX_BPM}</span>
         </div>
 
-        <div className="mt-6 flex justify-center">
-          <button
-            type="button"
-            onClick={() => {
-              if (selected) void play(selected.id);
-            }}
-            disabled={!selected}
-            className="inline-flex h-12 min-w-32 items-center justify-center gap-2 rounded-full bg-accent px-6 text-sm font-medium text-[#1a120c] transition-colors hover:bg-[#f3a14d] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {playing ? <StopIcon /> : <PlayIcon />}
-            {playing ? "Stop" : "Play"}
-          </button>
-        </div>
-        <p className="mt-3 text-center text-xs text-muted">Space to play or stop</p>
+        <button
+          type="button"
+          onClick={() => {
+            if (selected) void play(selected.id);
+          }}
+          disabled={!selected}
+          className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-accent text-base font-medium text-[#1a120c] transition-colors hover:bg-[#f3a14d] active:bg-[#d98434] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {playing ? <StopIcon /> : <PlayIcon />}
+          {playing ? "Stop" : "Play"}
+        </button>
         {error ? (
-          <p role="alert" className="mt-3 text-center text-sm text-[#ffb4a2]">
+          <p role="alert" className="mt-2 text-center text-sm text-[#ffb4a2]">
             {error}
           </p>
         ) : null}
       </section>
 
-      <section className="mt-8">
+      <section className="mt-7">
         <h2 className="text-sm font-medium text-muted">Saved tempos</h2>
         {settings && settings.tempos.length === 0 ? (
           <p className="mt-3 text-sm text-muted">Add a tempo to start listening.</p>
         ) : null}
-        <ul className="mt-3 flex flex-col gap-2">
+        <ul className="mt-4 flex flex-col gap-3">
           {settings?.tempos.map((tempo) => {
             const isSelected = tempo.id === settings.selectedId;
             const isPlaying = tempo.id === playingId;
@@ -377,7 +382,7 @@ export function MetronomeApp() {
                       : `Play ${tempo.name || tempo.bpm}`
                   }
                   aria-pressed={isPlaying}
-                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-white/8 text-foreground hover:bg-white/12"
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-white/8 text-foreground hover:bg-white/12 active:bg-white/16"
                 >
                   {isPlaying ? <StopIcon /> : <PlayIcon />}
                 </button>
@@ -391,16 +396,18 @@ export function MetronomeApp() {
                   placeholder="Untitled"
                   aria-label={`Name for ${tempo.bpm} BPM`}
                   maxLength={60}
-                  className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
+                  enterKeyHint="done"
+                  autoCapitalize="words"
+                  className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted/70"
                 />
-                <span className="w-12 shrink-0 text-right text-sm text-muted tabular-nums">
+                <span className="w-11 shrink-0 text-right text-base text-muted tabular-nums">
                   {tempo.bpm}
                 </span>
                 <button
                   type="button"
                   onClick={() => removeTempo(tempo.id)}
                   aria-label={`Delete ${tempo.name || tempo.bpm}`}
-                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-foreground"
+                  className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-foreground active:bg-white/12"
                 >
                   <CloseIcon />
                 </button>
@@ -409,34 +416,37 @@ export function MetronomeApp() {
           })}
         </ul>
 
-        <form
-          onSubmit={addTempo}
-          className="mt-3 grid grid-cols-[minmax(0,1fr)_5.5rem_auto] gap-2"
-        >
+        <form onSubmit={addTempo} className="mt-4 flex flex-col gap-3">
           <input
             value={draftName}
             onChange={(event) => setDraftName(event.target.value)}
             placeholder="Name"
             aria-label="New tempo name"
             maxLength={60}
-            className="h-11 min-w-0 rounded-xl border border-line bg-card px-3 text-sm outline-none placeholder:text-muted/70 focus-visible:border-accent"
+            enterKeyHint="next"
+            autoCapitalize="words"
+            className="h-12 w-full rounded-xl border border-line bg-card px-3 text-base outline-none placeholder:text-muted/70 focus-visible:border-accent"
           />
-          <input
-            value={draftBpm}
-            onChange={(event) => setDraftBpm(event.target.value)}
-            type="number"
-            min={MIN_BPM}
-            max={MAX_BPM}
-            required
-            aria-label="New tempo BPM"
-            className="h-11 rounded-xl border border-line bg-card px-3 text-sm outline-none focus-visible:border-accent"
-          />
-          <button
-            type="submit"
-            className="h-11 rounded-xl border border-line px-4 text-sm font-medium hover:border-accent hover:text-accent"
-          >
-            Add
-          </button>
+          <div className="flex gap-3">
+            <input
+              value={draftBpm}
+              onChange={(event) => setDraftBpm(event.target.value)}
+              type="number"
+              inputMode="numeric"
+              min={MIN_BPM}
+              max={MAX_BPM}
+              required
+              enterKeyHint="done"
+              aria-label="New tempo BPM"
+              className="h-12 w-24 rounded-xl border border-line bg-card px-3 text-base outline-none focus-visible:border-accent"
+            />
+            <button
+              type="submit"
+              className="h-12 flex-1 rounded-xl bg-foreground text-base font-medium text-background active:opacity-80"
+            >
+              Add tempo
+            </button>
+          </div>
         </form>
       </section>
     </div>
@@ -445,7 +455,7 @@ export function MetronomeApp() {
 
 function PlayIcon() {
   return (
-    <svg viewBox="0 0 20 20" className="size-4" aria-hidden="true">
+    <svg viewBox="0 0 20 20" className="size-5" aria-hidden="true">
       <path d="M6.5 4.8v10.4L15 10 6.5 4.8Z" fill="currentColor" />
     </svg>
   );
@@ -453,7 +463,7 @@ function PlayIcon() {
 
 function StopIcon() {
   return (
-    <svg viewBox="0 0 20 20" className="size-4" aria-hidden="true">
+    <svg viewBox="0 0 20 20" className="size-5" aria-hidden="true">
       <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" fill="currentColor" />
     </svg>
   );

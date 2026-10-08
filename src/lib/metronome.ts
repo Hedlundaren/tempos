@@ -53,7 +53,7 @@ export class Metronome {
   angleAt(time: number) {
     if (!this.playing) return 0;
     const phase = (time - this.beatEpoch) / (60 / this.bpm);
-    return Math.cos(phase * Math.PI) * 26;
+    return Math.cos(phase * Math.PI) * 22;
   }
 
   beatAt(time: number) {
