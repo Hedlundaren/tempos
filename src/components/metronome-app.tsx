@@ -170,7 +170,7 @@ export function MetronomeApp() {
     if (!arm) return;
 
     const paintBeat = (pulse: number) => {
-      const mix = pulse * 0.5;
+      const mix = pulse * 0.28;
       const red = Math.round(20 + (107 - 20) * mix);
       const green = Math.round(17 + (75 - 17) * mix);
       const blue = Math.round(14 + (50 - 14) * mix);
