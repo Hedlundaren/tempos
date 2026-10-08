@@ -192,10 +192,11 @@ export function MetronomeApp() {
   }
 
   function selectTempo(id: string) {
-    const tempo = settings?.tempos.find((item) => item.id === id);
-    if (!settings || !tempo || settings.selectedId === id) return;
+    const current = getSettingsSnapshot();
+    const tempo = current?.tempos.find((item) => item.id === id);
+    if (!current || !tempo || current.selectedId === id) return;
 
-    writeSettings({ ...settings, selectedId: id });
+    writeSettings({ ...current, selectedId: id });
     setBpmDraft(null);
 
     if (playingId) {
@@ -596,7 +597,15 @@ function SortableTempo({
   });
 
   return (
-    <li ref={ref} className={isDragSource || isDropping ? "invisible" : undefined}>
+    <li
+      ref={ref}
+      onClick={(event) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest("button[data-row-action]")) return;
+        onSelect(tempo.id);
+      }}
+      className={`cursor-pointer ${isDragSource || isDropping ? "invisible" : ""}`}
+    >
       <TempoRow
         tempo={tempo}
         isSelected={isSelected}
@@ -651,6 +660,7 @@ function TempoRow({
       {onPlay ? (
         <button
           type="button"
+          data-row-action="play"
           onClick={() => onPlay(tempo.id)}
           aria-label={isPlaying ? `Stop ${label}` : `Play ${label}`}
           aria-pressed={isPlaying}
@@ -677,7 +687,7 @@ function TempoRow({
           maxLength={60}
           enterKeyHint="done"
           autoCapitalize="words"
-          className="min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted/70"
+          className="min-w-0 flex-1 cursor-text bg-transparent text-base outline-none placeholder:text-muted/70"
         />
       ) : (
         <span className="min-w-0 flex-1 truncate text-base">
@@ -690,6 +700,7 @@ function TempoRow({
       {onRemove ? (
         <button
           type="button"
+          data-row-action="delete"
           onClick={() => onRemove(tempo.id)}
           aria-label={`Delete ${label}`}
           className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-white/8 hover:text-foreground active:bg-white/12"
