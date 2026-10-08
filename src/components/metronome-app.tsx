@@ -67,6 +67,7 @@ export function MetronomeApp() {
   const busyRef = useRef(false);
   const playingIdRef = useRef(playingId);
   const shareTimerRef = useRef<number | null>(null);
+  const tapsRef = useRef<number[]>([]);
 
   const selected =
     settings?.tempos.find((tempo) => tempo.id === settings.selectedId) ?? null;
@@ -265,6 +266,26 @@ export function MetronomeApp() {
 
     updateTempo(selected.id, { bpm: next });
     if (playingId === selected.id) metronomeRef.current?.setBpm(next);
+  }
+
+  function tapTempo() {
+    if (!selected) return;
+
+    const now = performance.now();
+    const taps = tapsRef.current;
+    const last = taps[taps.length - 1];
+    if (last !== undefined && now - last < 150) return;
+    if (last !== undefined && now - last > 2500) taps.length = 0;
+
+    taps.push(now);
+    if (taps.length > 6) taps.shift();
+    if (taps.length < 2) return;
+
+    let total = 0;
+    for (let index = 1; index < taps.length; index += 1) {
+      total += taps[index] - taps[index - 1];
+    }
+    changeBpm(60000 / (total / (taps.length - 1)));
   }
 
   function onBpmDraftChange(value: string) {
@@ -613,11 +634,20 @@ export function MetronomeApp() {
 
         <button
           type="button"
+          onClick={tapTempo}
+          disabled={!selected}
+          aria-label="Tap to set tempo"
+          className="mt-4 inline-flex h-12 w-full items-center justify-center rounded-full border border-line bg-white/8 text-base font-medium active:bg-white/16 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Tap
+        </button>
+        <button
+          type="button"
           onClick={() => {
             if (selected) void play(selected.id);
           }}
           disabled={!selected}
-          className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-accent text-base font-medium text-[#1a120c] transition-colors hover:bg-[#f3a14d] active:bg-[#d98434] disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-accent text-base font-medium text-[#1a120c] transition-colors hover:bg-[#f3a14d] active:bg-[#d98434] disabled:cursor-not-allowed disabled:opacity-40"
         >
           {playing ? <StopIcon /> : <PlayIcon />}
           {playing ? "Stop" : "Play"}
