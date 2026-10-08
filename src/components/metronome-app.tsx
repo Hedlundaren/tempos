@@ -58,6 +58,7 @@ export function MetronomeApp() {
   const metronomeRef = useRef<Metronome | null>(null);
   const armRef = useRef<HTMLDivElement>(null);
   const bobRef = useRef<HTMLDivElement>(null);
+  const beatRef = useRef<HTMLDivElement>(null);
   const busyRef = useRef(false);
 
   const selected =
@@ -126,9 +127,25 @@ export function MetronomeApp() {
     const arm = armRef.current;
     if (!arm) return;
 
+    const paintBeat = (pulse: number) => {
+      const mix = pulse * 0.5;
+      const red = Math.round(20 + (107 - 20) * mix);
+      const green = Math.round(17 + (75 - 17) * mix);
+      const blue = Math.round(14 + (50 - 14) * mix);
+      const color = `rgb(${red}, ${green}, ${blue})`;
+      document.documentElement.style.backgroundColor = color;
+      document.body.style.backgroundColor = color;
+      const beat = beatRef.current;
+      if (!beat) return;
+      beat.style.backgroundColor = color;
+    };
+
     const clearBeat = () => {
+      document.documentElement.style.backgroundColor = "";
       document.body.style.backgroundColor = "";
-      document.body.style.backgroundImage = "";
+      const beat = beatRef.current;
+      if (!beat) return;
+      beat.style.backgroundColor = "";
     };
 
     if (!playingId) {
@@ -150,13 +167,7 @@ export function MetronomeApp() {
       const now = metronome.time;
       if (!reduceMotion) {
         arm.style.transform = `rotate(${metronome.angleAt(now)}deg)`;
-        const pulse = metronome.pulseAt(now);
-        const mix = pulse * 0.5;
-        const red = Math.round(20 + (107 - 20) * mix);
-        const green = Math.round(17 + (75 - 17) * mix);
-        const blue = Math.round(14 + (50 - 14) * mix);
-        document.body.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
-        document.body.style.backgroundImage = `radial-gradient(900px 480px at 50% -10%, rgba(255, 196, 120, ${(0.12 + pulse * 0.4).toFixed(3)}), transparent 62%)`;
+        paintBeat(metronome.pulseAt(now));
       }
 
       const beat = metronome.beatAt(now);
@@ -361,7 +372,27 @@ export function MetronomeApp() {
           border-radius: 999px;
           background: #ffffff;
         }
+        html,
+        body,
+        button,
+        input,
+        textarea {
+          -webkit-tap-highlight-color: transparent;
+        }
+        input:not([type="range"]),
+        textarea {
+          -webkit-appearance: none;
+          appearance: none;
+          caret-color: #f4efe6;
+        }
+        input:-webkit-autofill,
+        textarea:-webkit-autofill {
+          -webkit-text-fill-color: #f4efe6;
+          -webkit-box-shadow: 0 0 0 1000px #221e18 inset;
+          caret-color: #f4efe6;
+        }
       `}</style>
+      <div ref={beatRef} aria-hidden="true" className="beat-wash" />
       <header>
         <h1 className="text-2xl font-medium tracking-tight">Tempos</h1>
       </header>
